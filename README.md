@@ -4,9 +4,9 @@ A repository for building and evolving **agent instruction sets** as composable 
 
 The project currently contains:
 
-- A Rust crate scaffold (`src/main.rs`) that is still a placeholder.
-- A Python utility (`refined_agents/create_prompts.py`) for loading and assembling prompt chunks.
-- A Python package/CLI (`refined-agents`) for generating prompts after installation.
+- A Python package/CLI (`refined-agents`) for generating prompts from Python projects.
+- A Rust CLI (`refined-agents-rs`) for generating prompts from Rust projects.
+- A shared Markdown prompt catalog used by both implementations.
 - A curated prompt catalog under `refined_agents/prompts/system/...` organized by:
   - general engineering rules
   - agent-specific overlays (Codex, Claude Code, Cursor)
@@ -27,11 +27,14 @@ The intent is to treat prompt engineering like software engineering:
 ```text
 .
 ├── Cargo.toml
+├── pyproject.toml
 ├── src/
 │   └── main.rs
+├── tests/
 └── refined_agents/
+    ├── __init__.py
+    ├── __main__.py
     ├── create_prompts.py
-    ├── test.sql
     └── prompts/
         ├── specific_specialist_rules/      # currently empty
         └── system/
@@ -74,9 +77,9 @@ Then regular Markdown body content follows.
 
 If `priority` is missing, `create_prompts.py` tries to infer it from filename prefix (`010_...`).
 
-## How Composition Works (Current Script)
+## How Composition Works
 
-`refined_agents/create_prompts.py` provides:
+The Python package provides:
 
 - `PromptChunk` dataclass
 - `AgentProfile` dataclass
@@ -86,6 +89,8 @@ If `priority` is missing, `create_prompts.py` tries to infer it from filename pr
 - `build_agent_prompt(...)`
 - `build_cursor_rule(...)`
 - `build_agents_md(...)`
+
+The Rust CLI mirrors the same core composition behavior using the shared prompt catalog.
 
 ### Composition Flow
 
@@ -122,18 +127,18 @@ By default, prompts are loaded from `refined_agents/prompts` (via `DEFAULT_PROMP
 
 ## Quick Start For Engineers
 
-### 1) Install locally as a development library
+### 1) Install locally
 
-From the repository root:
+Python users can sync the local development environment from the repository root:
 
 ```bash
-python3 -m pip install -e .
+uv sync --all-groups
 ```
 
-After installation, use the CLI:
+Then use the Python CLI:
 
 ```bash
-refined-agents \
+uv run refined-agents \
     --agent codex \
     --language python \
     --task api \
@@ -142,10 +147,33 @@ refined-agents \
     --output data/fastapi_api_prompt.md
 ```
 
+Rust users can run the Rust CLI from the repository root:
+
+```bash
+cargo run -- \
+    --agent codex \
+    --language rust \
+    --task refactor \
+    --objective "Refactor parser module safely"
+```
+
+Or install it locally:
+
+```bash
+cargo install --path .
+refined-agents-rs \
+    --agent cursor \
+    --language rust \
+    --task bugfix \
+    --objective "Fix failing ownership regression test"
+```
+
+The Rust binary embeds the prompt catalog at build time, so installed binaries can run outside this repository. Use `--prompts-root path/to/prompts` when you want to override the embedded catalog during local development.
+
 You can also run it as a module without relying on the console script:
 
 ```bash
-python3 -m refined_agents \
+uv run python -m refined_agents \
     --agent cursor \
     --language python \
     --task backend \
@@ -178,12 +206,12 @@ Start with these folders:
 
 ### 3) Run and iterate locally
 
-Use Python 3.11+ (script uses modern typing syntax).
+Use Python 3.11+ (script uses modern typing syntax). The preferred local workflow uses `uv`.
 
 Generate a prompt directly from the terminal with the installed CLI:
 
 ```bash
-refined-agents \
+uv run refined-agents \
     --agent codex \
     --language python \
     --task api \
@@ -195,7 +223,7 @@ refined-agents \
 The direct script command also works from the repository root:
 
 ```bash
-python3 refined_agents/create_prompts.py \
+uv run python refined_agents/create_prompts.py \
     --agent codex \
     --language python \
     --task api \
@@ -207,7 +235,7 @@ python3 refined_agents/create_prompts.py \
 Data pipeline example:
 
 ```bash
-python3 refined_agents/create_prompts.py \
+uv run python refined_agents/create_prompts.py \
     --agent claude-code \
     --language python \
     --task data_pipeline \
@@ -218,7 +246,7 @@ python3 refined_agents/create_prompts.py \
 Cursor project rule example:
 
 ```bash
-python3 refined_agents/create_prompts.py \
+uv run python refined_agents/create_prompts.py \
     --agent cursor \
     --language python \
     --task backend \
@@ -233,7 +261,7 @@ python3 refined_agents/create_prompts.py \
 Cursor `AGENTS.md` example:
 
 ```bash
-python3 refined_agents/create_prompts.py \
+uv run python refined_agents/create_prompts.py \
     --agent cursor \
     --language python \
     --task refactor \
@@ -245,7 +273,7 @@ python3 refined_agents/create_prompts.py \
 Interactive mode (asks questions in terminal):
 
 ```bash
-python3 refined_agents/create_prompts.py --interactive
+uv run python refined_agents/create_prompts.py --interactive
 ```
 
 If you prefer to print to stdout instead of writing a file, omit `--output`.
@@ -259,7 +287,7 @@ Project context is now optional and externalized:
 Example with local project context:
 
 ```bash
-refined-agents \
+uv run refined-agents \
     --agent codex \
     --language python \
     --task backend \
@@ -282,13 +310,13 @@ Example:
 REFINED_AGENTS_AGENT=cursor \
 REFINED_AGENTS_LANGUAGE=python \
 REFINED_AGENTS_TASK=data_pipeline \
-refined-agents --objective "Create an ingestion pipeline with schema validation"
+uv run refined-agents --objective "Create an ingestion pipeline with schema validation"
 ```
 
 Minimal local experimentation from repository root using the library API:
 
 ```bash
-python3 - <<'PY'
+uv run python - <<'PY'
 from refined_agents.create_prompts import build_system_prompt
 
 # This call reflects current defaults; see caveat section in README.

@@ -3,5 +3,5 @@
 version = 4
 
 [[package]]
-name = "black_cube_agents"
+name = "refined-agents-rs"
 version = "0.1.0"

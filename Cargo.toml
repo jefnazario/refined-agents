@@ -1,6 +1,12 @@
 [package]
-name = "black_cube_agents"
+name = "refined-agents-rs"
 version = "0.1.0"
 edition = "2024"
+description = "Rust CLI for composing coding-agent prompts from the refined-agents prompt catalog"
+license = "MIT OR Apache-2.0"
 
 [dependencies]
+
+[[bin]]
+name = "refined-agents-rs"
+path = "src/main.rs"

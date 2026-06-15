@@ -8,6 +8,7 @@ version = "0.1.0"
 description = "Composable prompt generator for coding agents such as Codex, Claude Code, and Cursor."
 readme = "README.md"
 requires-python = ">=3.11"
+license = { text = "MIT OR Apache-2.0" }
 dependencies = [
     "dynaconf>=3.2.13",
 ]
@@ -25,6 +26,8 @@ classifiers = [
     "Development Status :: 3 - Alpha",
     "Environment :: Console",
     "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Topic :: Software Development :: Code Generators",
@@ -32,6 +35,12 @@ classifiers = [
 
 [project.scripts]
 refined-agents = "refined_agents.create_prompts:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.0",
+    "ruff>=0.11.0",
+]
 
 [tool.setuptools]
 packages = ["refined_agents"]
