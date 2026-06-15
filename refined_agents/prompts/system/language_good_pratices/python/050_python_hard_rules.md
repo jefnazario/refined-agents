@@ -61,8 +61,9 @@ Logging must follow these rules:
 ```python
 import logging
 logger = logging.getLogger(__name__)
+```
 
-Logging messages must include useful operational context.
+Logging messages must include useful operational con'text.
 Prefer structured logging where important contextual fields are included separately.
 Example:
 

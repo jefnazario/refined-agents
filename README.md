@@ -3,6 +3,7 @@
 A repository for building and evolving **agent instruction sets** as composable Markdown prompt chunks.
 
 The project currently contains:
+
 - A Rust crate scaffold (`src/main.rs`) that is still a placeholder.
 - A Python utility (`refined_agents/create_prompts.py`) for loading and assembling prompt chunks.
 - A curated prompt catalog under `refined_agents/prompts/system/...` organized by:
@@ -13,6 +14,7 @@ The project currently contains:
 ## Why This Repo Exists
 
 The intent is to treat prompt engineering like software engineering:
+
 - break guidance into small, versioned modules
 - assign metadata (`priority`, `tags`)
 - compose final system prompts deterministically
@@ -69,6 +71,7 @@ If `priority` is missing, `create_prompts.py` tries to infer it from filename pr
 ## How Composition Works (Current Script)
 
 `refined_agents/create_prompts.py` provides:
+
 - `PromptChunk` dataclass
 - `_parse_front_matter(md_text)`
 - `load_chunks(*folders, root="agents/prompts")`
@@ -98,23 +101,20 @@ flowchart LR
 
 ## Important Current Status (Read This First)
 
-The current prompt files are deeply nested (`system/general_developer_rules`, `system/language_good_pratices/python`, etc.), but `load_chunks` currently scans only `*.md` directly inside each selected folder.
+The prompt files are deeply nested (`system/general_developer_rules`, `system/language_good_pratices/python`, etc.) and the generator now supports this layout using recursive Markdown discovery.
 
-Also, `load_chunks` defaults `root` to `agents/prompts`, while this repository stores prompts under `refined_agents/prompts`.
+By default, prompts are loaded from `refined_agents/prompts` (via `DEFAULT_PROMPTS_ROOT`).
 
 ### Practical Impact
 
-As-is, `build_system_prompt()` will not assemble the nested prompt catalog unless one of these is done:
-- adjust `root` and recursive discovery logic in `create_prompts.py`, or
-- flatten prompt files into the folder structure expected by the script.
-
-This is the main onboarding caveat.
+`build_system_prompt()` and the CLI now assemble the current catalog directly. Mode-specific files are filtered by selected task mode, and task presets apply include/exclude tags to keep generated prompts focused.
 
 ## Quick Start For Engineers
 
 ### 1) Understand the catalog
 
 Start with these folders:
+
 - `refined_agents/prompts/system/general_developer_rules`
 - `refined_agents/prompts/system/language_good_pratices/python`
 - `refined_agents/prompts/system/language_good_pratices/rust`
@@ -124,7 +124,86 @@ Start with these folders:
 
 Use Python 3.11+ (script uses modern typing syntax).
 
-Minimal local experimentation from repository root:
+Generate a prompt directly from the terminal:
+
+```bash
+uv run --project refined_agents python refined_agents/create_prompts.py \
+    --agent codex \
+    --language python \
+    --task api \
+    --framework fastapi \
+    --objective "Create a FastAPI API for customer CRUD with validation and tests" \
+    --output data/fastapi_api_prompt.md
+```
+
+Inside `refined_agents/`, the equivalent command is:
+
+```bash
+python3 create_prompts.py \
+    --agent codex \
+    --language python \
+    --task api \
+    --framework fastapi \
+    --objective "Create a FastAPI API for customer CRUD with validation and tests" \
+    --output data/fastapi_api_prompt.md
+```
+
+Data pipeline example:
+
+```bash
+python3 refined_agents/create_prompts.py \
+    --agent claude-code \
+    --language python \
+    --task data_pipeline \
+    --objective "Build an idempotent pipeline to ingest CSV, validate schema, and publish curated parquet" \
+    --output prompts/data_pipeline_prompt.md
+```
+
+Interactive mode (asks questions in terminal):
+
+```bash
+python3 refined_agents/create_prompts.py --interactive
+```
+
+If you prefer to print to stdout instead of writing a file, omit `--output`.
+
+Project context is now optional and externalized:
+
+- If you do not pass a project context source, prompts are generated without project context.
+- Use `--project-context-path` to load project context from a local markdown file.
+- Use `--project-context-url` to download project context from a URL.
+
+Example with local project context:
+
+```bash
+uv run --project refined_agents python refined_agents/create_prompts.py \
+    --agent codex \
+    --language python \
+    --task backend \
+    --objective "Implement service layer for order lifecycle" \
+    --project-context-path refined_agents/prompts/system/general_developer_rules/000_project_context.md \
+    --output data/backend_prompt.md
+```
+
+### 2.1) Configure defaults via environment variables (Dynaconf)
+
+The generator now uses Dynaconf and loads defaults from:
+
+- `refined_agents/settings.toml`
+- `refined_agents/.secrets.toml` (optional, gitignored)
+- environment variables with prefix `REFINED_AGENTS_`
+
+Example:
+
+```bash
+cd refined_agents
+REFINED_AGENTS_AGENT=goose \
+REFINED_AGENTS_LANGUAGE=python \
+REFINED_AGENTS_TASK=data_pipeline \
+uv run python create_prompts.py --objective "Create an ingestion pipeline with schema validation"
+```
+
+Minimal local experimentation from repository root using the library API:
 
 ```bash
 python3 - <<'PY'
@@ -139,6 +218,7 @@ PY
 ### 3) Extend rules safely
 
 When adding a new prompt chunk:
+
 - place it in the correct domain folder
 - add front matter (`id`, `priority`, `tags`)
 - keep one focused concern per file
@@ -153,11 +233,10 @@ When adding a new prompt chunk:
 
 ## Suggested Next Engineering Steps
 
-1. Align `create_prompts.py` with current nested folder layout (recursive glob and root alignment).
-2. Add tests for front matter parsing, sorting, and tag/mode filtering.
-3. Add a small CLI entrypoint to generate prompt bundles by language + mode.
-4. Add real examples under `specific_specialist_rules/`.
-5. Replace placeholder Rust `main.rs` or document Rust role if intentionally reserved.
+1. Add automated tests for front matter parsing, mode detection, and tag filtering.
+2. Add real examples under `specific_specialist_rules/`.
+3. Add task presets for more frameworks/stacks (e.g., Django, Axum, Actix).
+4. Replace placeholder Rust `main.rs` or document Rust role if intentionally reserved.
 
 ## Notes
 

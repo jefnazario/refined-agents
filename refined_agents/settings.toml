@@ -1,0 +1,10 @@
+[default]
+# Dynaconf defaults for prompt generation.
+agent = "codex"
+language = "python"
+task = "api"
+prompts_root = "prompts"
+framework = ""
+extra_context = ""
+project_context_path = ""
+project_context_url = ""
