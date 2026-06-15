@@ -1,6 +1,6 @@
 ---
 id: rust_defaults
-priority: 50
+priority: 60
 tags: [rust]
 ---
 

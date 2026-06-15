@@ -1,6 +1,6 @@
 ---
 id: python_hard_rules
-priority: 40
+priority: 50
 tags: [always, python]
 ---
 

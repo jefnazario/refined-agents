@@ -1,12 +1,7 @@
 
 ---
-
-# 📄 050_python_defaults.md (UPDATED)
-
-```markdown
----
 id: python_defaults
-priority: 50
+priority: 60
 tags: [python]
 ---
 

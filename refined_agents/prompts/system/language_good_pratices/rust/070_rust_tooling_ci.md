@@ -1,6 +1,6 @@
 ---
 id: rust_tooling_ci
-priority: 60
+priority: 70
 tags: [rust, ci]
 ---
 

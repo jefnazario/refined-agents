@@ -1,12 +1,7 @@
 
 ---
-
-# 📄 070_rust_async.md
-
-```markdown
----
 id: rust_async
-priority: 70
+priority: 80
 tags: [rust, async]
 ---
 
