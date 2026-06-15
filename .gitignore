@@ -3,3 +3,8 @@
 refined_agents/.venv/
 .DS_Store
 refined_agents/.secrets.toml
+__pycache__/
+*.py[cod]
+build/
+dist/
+*.egg-info/

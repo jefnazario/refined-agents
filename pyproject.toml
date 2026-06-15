@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "refined-agents"
+version = "0.1.0"
+description = "Composable prompt generator for coding agents such as Codex, Claude Code, and Cursor."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "dynaconf>=3.2.13",
+]
+authors = [
+    { name = "black_cube_agents contributors" },
+]
+keywords = [
+    "agents",
+    "codex",
+    "cursor",
+    "claude-code",
+    "prompt-engineering",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Software Development :: Code Generators",
+]
+
+[project.scripts]
+refined-agents = "refined_agents.create_prompts:main"
+
+[tool.setuptools]
+packages = ["refined_agents"]
+include-package-data = true
+
+[tool.setuptools.package-data]
+refined_agents = [
+    "settings.toml",
+    "docs/*.md",
+    "prompts/**/*.md",
+]

@@ -126,6 +126,56 @@ TASK_PRESETS: dict[str, TaskPreset] = {
     ),
 }
 
+
+@dataclass(frozen=True)
+class AgentProfile:
+    name: str
+    tag: str
+    display_name: str
+    aliases: tuple[str, ...]
+    description: str
+
+
+AGENT_PROFILES: dict[str, AgentProfile] = {
+    "codex": AgentProfile(
+        name="codex",
+        tag="codex",
+        display_name="Codex",
+        aliases=("codex", "openai-codex", "openai codex"),
+        description="OpenAI Codex coding agent surfaces, including app, CLI, IDE, and automation use.",
+    ),
+    "claude-code": AgentProfile(
+        name="claude-code",
+        tag="claude_code",
+        display_name="Claude Code",
+        aliases=("claude-code", "claude_code", "claude", "anthropic-claude-code"),
+        description="Claude Code terminal, IDE, desktop, and browser coding workflows.",
+    ),
+    "cursor": AgentProfile(
+        name="cursor",
+        tag="cursor",
+        display_name="Cursor",
+        aliases=("cursor", "cursor-agent", "cursor agent"),
+        description="Cursor Agent and Cursor-native rules such as .cursor/rules/*.mdc and AGENTS.md.",
+    ),
+}
+
+AGENT_ALIASES: dict[str, str] = {
+    alias: name for name, profile in AGENT_PROFILES.items() for alias in profile.aliases
+}
+AGENT_TAGS = {profile.tag for profile in AGENT_PROFILES.values()}
+LANGUAGE_TAGS = {"python", "rust"}
+
+
+def _normalize_agent(agent: str) -> AgentProfile:
+    normalized = agent.strip().lower()
+    profile_name = AGENT_ALIASES.get(normalized, normalized)
+    if profile_name not in AGENT_PROFILES:
+        known = ", ".join(sorted(AGENT_PROFILES))
+        raise ValueError(f"Unknown agent '{agent}'. Expected one of: {known}")
+    return AGENT_PROFILES[profile_name]
+
+
 @dataclass(frozen=True)
 class PromptChunk:
     path: Path
@@ -204,6 +254,27 @@ def _extract_mode_from_path(path: Path) -> str | None:
         return None
     return parts[idx + 1]
 
+
+def _chunk_matches_tags(
+    *,
+    chunk_tags: set[str],
+    include: set[str],
+    exclude: set[str],
+) -> bool:
+    if not chunk_tags:
+        return True
+
+    if chunk_tags & exclude:
+        return False
+
+    for exclusive_group in (LANGUAGE_TAGS, AGENT_TAGS):
+        chunk_group_tags = chunk_tags & exclusive_group
+        if chunk_group_tags and not (chunk_group_tags & include):
+            return False
+
+    return not include or bool(chunk_tags & include)
+
+
 def build_system_prompt(
     include_tags: Iterable[str] = ("always",),
     exclude_tags: Iterable[str] = (),
@@ -236,13 +307,8 @@ def build_system_prompt(
         if mode is not None and chunk_mode is not None and chunk_mode != mode:
             continue
 
-        # Tag rules:
-        # - if a chunk has no tags, include it by default (optional; you can change this)
-        if c.tags:
-            if c.tags & exclude:
-                continue
-            if include and not (c.tags & include):
-                continue
+        if not _chunk_matches_tags(chunk_tags=c.tags, include=include, exclude=exclude):
+            continue
 
         rel_path = c.path.relative_to(Path(root))
         selected.append(f"<!-- {rel_path.as_posix()} -->\n{c.content}")
@@ -252,7 +318,7 @@ def build_system_prompt(
 
 def _build_execution_brief(
     *,
-    agent: str,
+    agent: AgentProfile,
     language: str,
     task: str,
     objective: str,
@@ -261,7 +327,7 @@ def _build_execution_brief(
 ) -> str:
     lines = [
         "# Execution Brief",
-        f"- Target coding agent: {agent}",
+        f"- Target coding agent: {agent.display_name}",
         f"- Primary language: {language}",
         f"- Task type: {task}",
     ]
@@ -327,12 +393,13 @@ def build_agent_prompt(
     project_context_path: str | None = None,
     project_context_url: str | None = None,
 ) -> str:
+    profile = _normalize_agent(agent)
     if task not in TASK_PRESETS:
         known = ", ".join(sorted(TASK_PRESETS))
         raise ValueError(f"Unknown task '{task}'. Expected one of: {known}")
 
     preset = TASK_PRESETS[task]
-    include_tags = {"always", language, *preset.tags}
+    include_tags = {"always", profile.tag, language, *preset.tags}
     project_context = _load_project_context(
         project_context_path=project_context_path,
         project_context_url=project_context_url,
@@ -347,7 +414,7 @@ def build_agent_prompt(
     )
 
     brief = _build_execution_brief(
-        agent=agent,
+        agent=profile,
         language=language,
         task=task,
         objective=objective,
@@ -359,7 +426,7 @@ def build_agent_prompt(
         [
             "# Prompt For Coding Agent",
             "",
-            f"This prompt is tailored for {agent}.",
+            f"This prompt is tailored for {profile.display_name}.",
             f"Task preset: {preset.name} ({preset.description})",
             "",
         ]
@@ -367,6 +434,29 @@ def build_agent_prompt(
 
     parts = [header, system_prompt, brief]
     return "\n\n".join(part for part in parts if part).strip() + "\n"
+
+
+def build_cursor_rule(
+    *,
+    prompt: str,
+    description: str | None = None,
+    globs: str | None = None,
+    always_apply: bool = False,
+) -> str:
+    front_matter = ["---"]
+    if description:
+        escaped = description.replace('"', '\\"')
+        front_matter.append(f'description: "{escaped}"')
+    if globs:
+        front_matter.append(f"globs: {globs}")
+    front_matter.append(f"alwaysApply: {'true' if always_apply else 'false'}")
+    front_matter.append("---")
+
+    return "\n".join(front_matter) + "\n\n" + prompt.strip() + "\n"
+
+
+def build_agents_md(prompt: str) -> str:
+    return "# Project Agent Instructions\n\n" + prompt.strip() + "\n"
 
 
 def _prompt_text(prompt: str, default: str | None = None) -> str:
@@ -378,7 +468,10 @@ def _prompt_text(prompt: str, default: str | None = None) -> str:
 
 def _interactive_args() -> argparse.Namespace:
     task_choices = ", ".join(sorted(TASK_PRESETS))
-    agent = _prompt_text("Target agent", str(settings.get("agent", "codex")))
+    agent_choices = ", ".join(sorted(AGENT_PROFILES))
+    agent = _prompt_text(
+        f"Target agent ({agent_choices})", str(settings.get("agent", "codex"))
+    )
     language = _prompt_text(
         "Language (python|rust)", str(settings.get("language", "python"))
     ).lower()
@@ -402,6 +495,10 @@ def _interactive_args() -> argparse.Namespace:
         project_context_path=project_context_path,
         project_context_url=project_context_url,
         output=output,
+        output_format="prompt",
+        cursor_rule_type="always",
+        cursor_globs=None,
+        cursor_description=None,
         root=str(DEFAULT_PROMPTS_ROOT),
     )
 
@@ -413,7 +510,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--agent",
         default=str(settings.get("agent", "codex")),
-        help="Target coding agent name.",
+        help=(
+            "Target coding agent name. Known agents: "
+            + ", ".join(sorted(AGENT_PROFILES.keys()))
+        ),
     )
     parser.add_argument(
         "--language",
@@ -451,6 +551,27 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--output", help="Output file path to save the generated prompt.")
     parser.add_argument(
+        "--format",
+        dest="output_format",
+        choices=["prompt", "cursor-rule", "agents-md"],
+        default="prompt",
+        help="Output artifact format.",
+    )
+    parser.add_argument(
+        "--cursor-rule-type",
+        choices=["always", "intelligent", "files", "manual"],
+        default="always",
+        help="Cursor .mdc rule application style when --format cursor-rule is used.",
+    )
+    parser.add_argument(
+        "--cursor-globs",
+        help="Comma-separated Cursor glob patterns for --cursor-rule-type files.",
+    )
+    parser.add_argument(
+        "--cursor-description",
+        help="Cursor rule description for intelligent or documented project rules.",
+    )
+    parser.add_argument(
         "--root",
         default=str(_default_prompts_root()),
         help="Prompts root folder. Defaults to refined_agents/prompts.",
@@ -464,6 +585,11 @@ def parse_args() -> argparse.Namespace:
     args = parser.parse_args()
     if args.interactive:
         return _interactive_args()
+
+    try:
+        _normalize_agent(args.agent)
+    except ValueError as exc:
+        parser.error(str(exc))
 
     missing = [name for name in ("language", "task", "objective") if not getattr(args, name)]
     if missing:
@@ -487,15 +613,27 @@ def main() -> None:
         project_context_path=args.project_context_path,
         project_context_url=args.project_context_url,
     )
+    output_text = prompt
+    if args.output_format == "cursor-rule":
+        if _normalize_agent(args.agent).name != "cursor":
+            raise ValueError("--format cursor-rule requires --agent cursor")
+        output_text = build_cursor_rule(
+            prompt=prompt,
+            description=args.cursor_description,
+            globs=args.cursor_globs if args.cursor_rule_type == "files" else None,
+            always_apply=args.cursor_rule_type == "always",
+        )
+    elif args.output_format == "agents-md":
+        output_text = build_agents_md(prompt)
 
     if args.output:
         output_path = Path(args.output)
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_text(prompt, encoding="utf-8")
+        output_path.write_text(output_text, encoding="utf-8")
         print(f"Prompt written to {output_path}")
         return
 
-    print(prompt)
+    print(output_text)
 
 
 if __name__ == "__main__":

@@ -6,8 +6,10 @@ The project currently contains:
 
 - A Rust crate scaffold (`src/main.rs`) that is still a placeholder.
 - A Python utility (`refined_agents/create_prompts.py`) for loading and assembling prompt chunks.
+- A Python package/CLI (`refined-agents`) for generating prompts after installation.
 - A curated prompt catalog under `refined_agents/prompts/system/...` organized by:
   - general engineering rules
+  - agent-specific overlays (Codex, Claude Code, Cursor)
   - language-specific rules (Python, Rust)
   - task modes (API, backend, bugfix, etc.)
 
@@ -34,6 +36,10 @@ The intent is to treat prompt engineering like software engineering:
         ├── specific_specialist_rules/      # currently empty
         └── system/
             ├── general_developer_rules/
+            ├── agents/
+            │   ├── claude_code/
+            │   ├── codex/
+            │   └── cursor/
             ├── language_good_pratices/
             │   ├── python/
             │   └── rust/
@@ -73,9 +79,13 @@ If `priority` is missing, `create_prompts.py` tries to infer it from filename pr
 `refined_agents/create_prompts.py` provides:
 
 - `PromptChunk` dataclass
+- `AgentProfile` dataclass
 - `_parse_front_matter(md_text)`
 - `load_chunks(*folders, root="agents/prompts")`
 - `build_system_prompt(include_tags=("always",), exclude_tags=(), mode=None)`
+- `build_agent_prompt(...)`
+- `build_cursor_rule(...)`
+- `build_agents_md(...)`
 
 ### Composition Flow
 
@@ -95,8 +105,9 @@ flowchart TD
 ```mermaid
 flowchart LR
     A[General Rules<br/>always-on] --> D[Composed Prompt]
-    B[Language Rules<br/>python or rust] --> D
-    C[Mode Rules<br/>api/backend/bugfix/etc.] --> D
+    B[Agent Overlay<br/>codex, claude-code, cursor] --> D
+    C[Language Rules<br/>python or rust] --> D
+    E[Mode Rules<br/>api/backend/bugfix/etc.] --> D
 ```
 
 ## Important Current Status (Read This First)
@@ -111,23 +122,18 @@ By default, prompts are loaded from `refined_agents/prompts` (via `DEFAULT_PROMP
 
 ## Quick Start For Engineers
 
-### 1) Understand the catalog
+### 1) Install locally as a development library
 
-Start with these folders:
-
-- `refined_agents/prompts/system/general_developer_rules`
-- `refined_agents/prompts/system/language_good_pratices/python`
-- `refined_agents/prompts/system/language_good_pratices/rust`
-- `refined_agents/prompts/system/modes`
-
-### 2) Run and iterate locally
-
-Use Python 3.11+ (script uses modern typing syntax).
-
-Generate a prompt directly from the terminal:
+From the repository root:
 
 ```bash
-uv run --project refined_agents python refined_agents/create_prompts.py \
+python3 -m pip install -e .
+```
+
+After installation, use the CLI:
+
+```bash
+refined-agents \
     --agent codex \
     --language python \
     --task api \
@@ -136,10 +142,60 @@ uv run --project refined_agents python refined_agents/create_prompts.py \
     --output data/fastapi_api_prompt.md
 ```
 
-Inside `refined_agents/`, the equivalent command is:
+You can also run it as a module without relying on the console script:
 
 ```bash
-python3 create_prompts.py \
+python3 -m refined_agents \
+    --agent cursor \
+    --language python \
+    --task backend \
+    --objective "Standardize service-layer changes"
+```
+
+Library usage:
+
+```python
+from refined_agents import build_agent_prompt
+
+prompt = build_agent_prompt(
+    agent="cursor",
+    language="python",
+    task="backend",
+    objective="Standardize service-layer changes",
+)
+print(prompt)
+```
+
+### 2) Understand the catalog
+
+Start with these folders:
+
+- `refined_agents/prompts/system/general_developer_rules`
+- `refined_agents/prompts/system/agents`
+- `refined_agents/prompts/system/language_good_pratices/python`
+- `refined_agents/prompts/system/language_good_pratices/rust`
+- `refined_agents/prompts/system/modes`
+
+### 3) Run and iterate locally
+
+Use Python 3.11+ (script uses modern typing syntax).
+
+Generate a prompt directly from the terminal with the installed CLI:
+
+```bash
+refined-agents \
+    --agent codex \
+    --language python \
+    --task api \
+    --framework fastapi \
+    --objective "Create a FastAPI API for customer CRUD with validation and tests" \
+    --output data/fastapi_api_prompt.md
+```
+
+The direct script command also works from the repository root:
+
+```bash
+python3 refined_agents/create_prompts.py \
     --agent codex \
     --language python \
     --task api \
@@ -159,6 +215,33 @@ python3 refined_agents/create_prompts.py \
     --output prompts/data_pipeline_prompt.md
 ```
 
+Cursor project rule example:
+
+```bash
+python3 refined_agents/create_prompts.py \
+    --agent cursor \
+    --language python \
+    --task backend \
+    --objective "Standardize service-layer changes around explicit validation, tests, and minimal diffs" \
+    --format cursor-rule \
+    --cursor-rule-type files \
+    --cursor-globs "src/**/*.py,tests/**/*.py" \
+    --cursor-description "Python backend service conventions" \
+    --output .cursor/rules/python-backend-service.mdc
+```
+
+Cursor `AGENTS.md` example:
+
+```bash
+python3 refined_agents/create_prompts.py \
+    --agent cursor \
+    --language python \
+    --task refactor \
+    --objective "Refactor safely while preserving behavior and verifying with the existing test suite" \
+    --format agents-md \
+    --output AGENTS.md
+```
+
 Interactive mode (asks questions in terminal):
 
 ```bash
@@ -176,7 +259,7 @@ Project context is now optional and externalized:
 Example with local project context:
 
 ```bash
-uv run --project refined_agents python refined_agents/create_prompts.py \
+refined-agents \
     --agent codex \
     --language python \
     --task backend \
@@ -185,7 +268,7 @@ uv run --project refined_agents python refined_agents/create_prompts.py \
     --output data/backend_prompt.md
 ```
 
-### 2.1) Configure defaults via environment variables (Dynaconf)
+### 3.1) Configure defaults via environment variables (Dynaconf)
 
 The generator now uses Dynaconf and loads defaults from:
 
@@ -196,11 +279,10 @@ The generator now uses Dynaconf and loads defaults from:
 Example:
 
 ```bash
-cd refined_agents
-REFINED_AGENTS_AGENT=goose \
+REFINED_AGENTS_AGENT=cursor \
 REFINED_AGENTS_LANGUAGE=python \
 REFINED_AGENTS_TASK=data_pipeline \
-uv run python create_prompts.py --objective "Create an ingestion pipeline with schema validation"
+refined-agents --objective "Create an ingestion pipeline with schema validation"
 ```
 
 Minimal local experimentation from repository root using the library API:
@@ -215,7 +297,7 @@ print(result[:1000])
 PY
 ```
 
-### 3) Extend rules safely
+### 4) Extend rules safely
 
 When adding a new prompt chunk:
 
@@ -227,19 +309,25 @@ When adding a new prompt chunk:
 ## Prompt Domains In This Repo
 
 - **General developer rules**: reasoning strategy, code generation behavior, non-negotiables.
+- **Agent overlays**: Codex, Claude Code, and Cursor-specific execution guidance.
 - **Python rules**: lint/type/test expectations, async/data guidance, backend/API defaults.
 - **Rust rules**: safety/error/tooling/async defaults.
 - **Modes**: overlays for specific tasks (bugfix, refactor, test generation, backend, API, data pipeline).
 
 ## Suggested Next Engineering Steps
 
-1. Add automated tests for front matter parsing, mode detection, and tag filtering.
+1. Expand automated tests for front matter parsing, mode detection, tag filtering, and output formats.
 2. Add real examples under `specific_specialist_rules/`.
 3. Add task presets for more frameworks/stacks (e.g., Django, Axum, Actix).
-4. Replace placeholder Rust `main.rs` or document Rust role if intentionally reserved.
+4. Add Claude Code native artifact output (`CLAUDE.md`) if project-level Claude workflows become a target.
+5. Replace placeholder Rust `main.rs` or document Rust role if intentionally reserved.
 
 ## Notes
 
 - `test.sql` is currently empty.
 - `specific_specialist_rules/` is currently empty.
 - Rust crate is currently scaffold-only (`Hello, world!`).
+
+## Evidence Docs
+
+- `refined_agents/docs/coding_agent_evidence.md`: documented differences and source-backed rationale for Codex, Claude Code, and Cursor prompt optimization.
