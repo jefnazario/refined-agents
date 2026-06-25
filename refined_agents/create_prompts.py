@@ -183,6 +183,82 @@ class PromptChunk:
     tags: set[str]
     content: str
 
+
+@dataclass(frozen=True)
+class PriorityTier:
+    """A band of priorities rendered under a shared heading.
+
+    Chunks are placed in the first tier whose ``max_priority`` is >= the
+    chunk priority. The heading and blurb make importance an explicit signal
+    the receiving agent can read, instead of being implied only by ordering.
+    """
+
+    max_priority: int
+    heading: str
+    blurb: str
+
+
+# Ordered from highest importance (lowest priority numbers) to lowest.
+# The final tier uses a very large bound to catch everything remaining.
+PRIORITY_TIERS: tuple[PriorityTier, ...] = (
+    PriorityTier(
+        max_priority=34,
+        heading="Non-Negotiable Rules",
+        blurb="These rules take precedence. Follow them exactly; do not override them with anything below.",
+    ),
+    PriorityTier(
+        max_priority=69,
+        heading="Core Guidelines",
+        blurb="Strong defaults for how to carry out the work. Apply unless a non-negotiable rule above conflicts.",
+    ),
+    PriorityTier(
+        max_priority=10**9,
+        heading="Supplementary Guidance",
+        blurb="Context-specific and stylistic guidance. Use where it applies.",
+    ),
+)
+
+
+def _tier_for_priority(priority: int) -> PriorityTier:
+    for tier in PRIORITY_TIERS:
+        if priority <= tier.max_priority:
+            return tier
+    return PRIORITY_TIERS[-1]
+
+
+# Chunks carrying this tag are recapped at the very end of the prompt so the
+# most critical rules get recency weight in addition to their primacy position,
+# countering the "lost in the middle" effect in long prompts.
+RECAP_TAG = "critical"
+
+
+def _section_headings(content: str) -> list[str]:
+    """Top-level (`# `) section titles of a chunk, minus its own title."""
+    headings = [
+        line[2:].strip() for line in content.splitlines() if line.startswith("# ")
+    ]
+    return headings[1:] if headings else []
+
+
+def _build_critical_recap(chunks: list[PromptChunk]) -> str:
+    items: list[str] = []
+    for c in chunks:
+        for heading in _section_headings(c.content):
+            if heading not in items:
+                items.append(heading)
+
+    if not items:
+        return ""
+
+    checklist = "\n".join(f"- {item}" for item in items)
+    return (
+        "## Non-Negotiable Rules — Final Reminder\n\n"
+        "_Before finalizing, re-verify the work against the non-negotiable rules "
+        "stated earlier. They override everything below them. At minimum, confirm "
+        "each of these holds:_\n\n"
+        f"{checklist}"
+    )
+
 def _parse_front_matter(md_text: str) -> tuple[dict, str]:
     """
     Minimal front-matter parser (YAML-ish without dependencies).
@@ -281,19 +357,23 @@ def build_system_prompt(
     mode: str | None = None,
     root: str | Path = DEFAULT_PROMPTS_ROOT,
     project_context_content: str | None = None,
+    tiered: bool = True,
+    reinforce_critical: bool = True,
 ) -> str:
     include = set(include_tags)
     exclude = set(exclude_tags)
 
     chunks = load_chunks("system", root=root)
 
-    selected: list[str] = []
+    preamble: list[str] = []
 
     if project_context_content:
-        selected.append(
+        preamble.append(
             "<!-- external/project_context.md -->\n" + project_context_content.strip()
         )
 
+    # Collect matching chunks, preserving the priority/name sort from load_chunks.
+    matched: list[PromptChunk] = []
     for c in chunks:
         # Project context is injected only when explicitly provided by the user.
         if c.path.name == PROJECT_CONTEXT_FILE:
@@ -310,10 +390,38 @@ def build_system_prompt(
         if not _chunk_matches_tags(chunk_tags=c.tags, include=include, exclude=exclude):
             continue
 
-        rel_path = c.path.relative_to(Path(root))
-        selected.append(f"<!-- {rel_path.as_posix()} -->\n{c.content}")
+        matched.append(c)
 
-    return "\n\n".join(selected).strip()
+    def render_chunk(c: PromptChunk) -> str:
+        rel_path = c.path.relative_to(Path(root))
+        return f"<!-- {rel_path.as_posix()} -->\n{c.content}"
+
+    # Recap of critical chunks, appended last so it lands in the high-attention
+    # end zone of the prompt (just above the task/objective in build_agent_prompt).
+    recap = ""
+    if reinforce_critical:
+        recap = _build_critical_recap([c for c in matched if RECAP_TAG in c.tags])
+
+    if not tiered:
+        selected = preamble + [render_chunk(c) for c in matched]
+        if recap:
+            selected.append(recap)
+        return "\n\n".join(selected).strip()
+
+    # Group matched chunks into priority tiers so importance is an explicit,
+    # readable signal rather than just implied by ordering.
+    sections: list[str] = list(preamble)
+    for tier in PRIORITY_TIERS:
+        tier_chunks = [c for c in matched if _tier_for_priority(c.priority) is tier]
+        if not tier_chunks:
+            continue
+        body = "\n\n".join(render_chunk(c) for c in tier_chunks)
+        sections.append(f"## {tier.heading}\n\n_{tier.blurb}_\n\n{body}")
+
+    if recap:
+        sections.append(recap)
+
+    return "\n\n".join(sections).strip()
 
 
 def _build_execution_brief(
