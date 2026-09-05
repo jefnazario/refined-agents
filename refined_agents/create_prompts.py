@@ -171,7 +171,7 @@ AGENT_ALIASES: dict[str, str] = {
     alias: name for name, profile in AGENT_PROFILES.items() for alias in profile.aliases
 }
 AGENT_TAGS = {profile.tag for profile in AGENT_PROFILES.values()}
-LANGUAGE_TAGS = {"python", "rust"}
+LANGUAGE_TAGS = {"python", "rust", "csharp", "vue", "vuejs"}
 
 
 def _normalize_agent(agent: str) -> AgentProfile:
@@ -588,7 +588,7 @@ def _interactive_args() -> argparse.Namespace:
         f"Target agent ({agent_choices})", str(settings.get("agent", "codex"))
     )
     language = _prompt_text(
-        "Language (python|rust)", str(settings.get("language", "python"))
+        "Language (python|rust|csharp|vue|vuejs)", str(settings.get("language", "python"))
     ).lower()
     task = _prompt_text(f"Task ({task_choices})", str(settings.get("task", "api"))).lower()
     framework = _prompt_text("Framework (optional)", "") or None
@@ -632,7 +632,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--language",
-        choices=["python", "rust"],
+        choices=["python", "rust", "csharp", "vue", "vuejs"],
         default=str(settings.get("language", "python")),
         help="Primary implementation language.",
     )

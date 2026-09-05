@@ -44,8 +44,10 @@ The intent is to treat prompt engineering like software engineering:
             │   ├── codex/
             │   └── cursor/
             ├── language_good_pratices/
+            │   ├── csharp/
             │   ├── python/
-            │   └── rust/
+            │   ├── rust/
+            │   └── vue/
             └── modes/
                 ├── api/
                 ├── backend/
@@ -200,8 +202,10 @@ Start with these folders:
 
 - `refined_agents/prompts/system/general_developer_rules`
 - `refined_agents/prompts/system/agents`
+- `refined_agents/prompts/system/language_good_pratices/csharp`
 - `refined_agents/prompts/system/language_good_pratices/python`
 - `refined_agents/prompts/system/language_good_pratices/rust`
+- `refined_agents/prompts/system/language_good_pratices/vue`
 - `refined_agents/prompts/system/modes`
 
 ### 3) Run and iterate locally

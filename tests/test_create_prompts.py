@@ -51,6 +51,49 @@ class AgentPromptTests(unittest.TestCase):
 
         self.assertIn("Rust Engineering Rules", prompt)
         self.assertNotIn("Python Engineering Rules", prompt)
+        self.assertNotIn("C# & .NET Engineering Rules", prompt)
+        self.assertNotIn("Vue.js & Frontend Engineering Rules", prompt)
+
+    def test_csharp_prompt_includes_csharp_rules_only(self) -> None:
+        prompt = build_agent_prompt(
+            agent="codex",
+            language="csharp",
+            task="backend",
+            objective="Implement appointment booking module.",
+        )
+
+        self.assertIn("C# & .NET Engineering Rules", prompt)
+        self.assertIn("Rich Domain Model & Encapsulation", prompt)
+        self.assertNotIn("Python Engineering Rules", prompt)
+        self.assertNotIn("Rust Engineering Rules", prompt)
+        self.assertNotIn("Vue.js & Frontend Engineering Rules", prompt)
+
+    def test_vue_prompt_includes_vue_rules_only(self) -> None:
+        prompt = build_agent_prompt(
+            agent="codex",
+            language="vue",
+            task="fullstack",
+            objective="Create customer dashboard with Composition API.",
+        )
+
+        self.assertIn("Vue.js & Frontend Engineering Rules", prompt)
+        self.assertIn("Separation of Concerns & Component Purity", prompt)
+        self.assertNotIn("Python Engineering Rules", prompt)
+        self.assertNotIn("Rust Engineering Rules", prompt)
+        self.assertNotIn("C# & .NET Engineering Rules", prompt)
+
+    def test_vuejs_alias_supported(self) -> None:
+        prompt = build_agent_prompt(
+            agent="cursor",
+            language="vuejs",
+            task="fullstack",
+            objective="Create user profile view.",
+        )
+
+        self.assertIn("Vue.js & Frontend Engineering Rules", prompt)
+        self.assertNotIn("Python Engineering Rules", prompt)
+
+
 
     def test_cursor_rule_output_has_mdc_front_matter(self) -> None:
         output = build_cursor_rule(

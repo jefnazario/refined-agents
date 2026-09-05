@@ -118,7 +118,7 @@ fn normalize_agent(agent: &str) -> Option<AgentProfile> {
 }
 
 fn usage() -> &'static str {
-    "Usage: refined-agents-rs --agent <codex|claude-code|cursor> --language <python|rust> --task <task> --objective <text> [options]
+    "Usage: refined-agents-rs --agent <codex|claude-code|cursor> --language <python|rust|csharp|vue|vuejs> --task <task> --objective <text> [options]
 
 Options:
   --framework <text>
@@ -188,8 +188,8 @@ fn parse_args() -> Result<Args, String> {
 
     let objective =
         objective.ok_or_else(|| "Missing required argument: --objective".to_string())?;
-    if !matches!(language.as_str(), "python" | "rust") {
-        return Err("Unknown language. Expected one of: python, rust".to_string());
+    if !matches!(language.as_str(), "python" | "rust" | "csharp" | "vue" | "vuejs") {
+        return Err("Unknown language. Expected one of: python, rust, csharp, vue, vuejs".to_string());
     }
     if task_preset(&task).is_none() {
         return Err(
@@ -372,7 +372,7 @@ fn chunk_matches_tags(
         return false;
     }
 
-    let exclusive_groups: [&[&str]; 2] = [&["python", "rust"], &["codex", "claude_code", "cursor"]];
+    let exclusive_groups: [&[&str]; 2] = [&["python", "rust", "csharp", "vue", "vuejs"], &["codex", "claude_code", "cursor"]];
     for exclusive_group in exclusive_groups {
         let chunk_has_group_tag = exclusive_group.iter().any(|tag| tags.contains(*tag));
         let include_has_group_tag = exclusive_group.iter().any(|tag| include.contains(*tag));
