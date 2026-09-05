@@ -1,7 +1,7 @@
 ---
 id: unbreakable_rules
 priority: 30
-tags: [always]
+tags: [always, critical]
 ---
 
 # Unbreakable Rules

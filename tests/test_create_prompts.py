@@ -7,6 +7,7 @@ from refined_agents.create_prompts import (
     build_agent_prompt,
     build_agents_md,
     build_cursor_rule,
+    build_system_prompt,
 )
 
 
@@ -64,6 +65,60 @@ class AgentPromptTests(unittest.TestCase):
         self.assertIn("globs: src/**/*.py,tests/**/*.py", output)
         self.assertIn("alwaysApply: false", output)
         self.assertTrue(output.endswith("\n"))
+
+    def test_tiered_prompt_emits_priority_headings(self) -> None:
+        prompt = build_system_prompt(
+            include_tags=("always", "python", "backend"), mode="backend"
+        )
+
+        self.assertIn("## Non-Negotiable Rules", prompt)
+        self.assertIn("## Core Guidelines", prompt)
+        # Non-negotiable section must come before core guidelines.
+        self.assertLess(
+            prompt.index("## Non-Negotiable Rules"),
+            prompt.index("## Core Guidelines"),
+        )
+
+    def test_tiered_can_be_disabled(self) -> None:
+        prompt = build_system_prompt(
+            include_tags=("always", "python", "backend"),
+            mode="backend",
+            tiered=False,
+        )
+
+        # The tier section heading + blurb must be gone...
+        self.assertNotIn("These rules take precedence", prompt)
+        self.assertNotIn("## Core Guidelines", prompt)
+
+    def test_critical_recap_appears_in_end_zone(self) -> None:
+        prompt = build_agent_prompt(
+            agent="claude-code",
+            language="python",
+            task="backend",
+            objective="Add a service layer.",
+        )
+
+        self.assertIn("## Non-Negotiable Rules — Final Reminder", prompt)
+        # Recap must sit after the rules themselves but before the objective.
+        self.assertLess(
+            prompt.index("## Non-Negotiable Rules\n"),
+            prompt.index("Final Reminder"),
+        )
+        self.assertLess(
+            prompt.index("Final Reminder"),
+            prompt.index("## Objective"),
+        )
+        # Recap is a compact checklist, not a duplicate of the full rules.
+        self.assertIn("- Security — Hard Rules", prompt)
+
+    def test_critical_recap_can_be_disabled(self) -> None:
+        prompt = build_system_prompt(
+            include_tags=("always", "python", "backend"),
+            mode="backend",
+            reinforce_critical=False,
+        )
+
+        self.assertNotIn("Final Reminder", prompt)
 
     def test_agents_md_output_is_plain_markdown(self) -> None:
         output = build_agents_md("# Prompt\n\nDo the work.")
