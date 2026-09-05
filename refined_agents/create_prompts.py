@@ -124,6 +124,13 @@ TASK_PRESETS: dict[str, TaskPreset] = {
         exclude_tags={"api", "backend", "data_pipeline", "refactor", "bugfix"},
         description="Generate or extend tests for behavior coverage.",
     ),
+    "fullstack": TaskPreset(
+        name="fullstack",
+        mode="fullstack",
+        tags={"api", "backend"},
+        exclude_tags={"data_pipeline", "refactor", "bugfix", "test"},
+        description="Design and implement a complete full-stack web application (frontend + backend + UI + real-time/database).",
+    ),
 }
 
 
